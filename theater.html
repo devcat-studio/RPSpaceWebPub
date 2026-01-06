@@ -70,7 +70,6 @@
                 // 모바일/웹뷰 환경에서 사용자 제스처 없이 재생 시도가 막힐 때 error 콜백이 오거나,
                 // state가 PLAYING으로 전환되지 않는 경우가 있어, 네이티브에 안내할 수 있게 한다.
                 console.log("Player error:", event && event.data);
-                this._notifyUserGestureRequired('playerError', { error: event && event.data });
             }
 
             _handleAutoplayBlocked(event) {
