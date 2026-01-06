@@ -118,30 +118,30 @@
                 const requestId = ++this._playRequestId;
                 this._player.playVideo();
 
-                const checkPlayback = (delayMs) => {
-                    window.setTimeout(() => {
-                        if (requestId !== this._playRequestId) return; // 최신 요청만 처리
-                        const state = this.getPlayerState();
-                        const isPlaying = state === YT.PlayerState.PLAYING;
-                        const isBuffering = state === YT.PlayerState.BUFFERING;
-                        if (isPlaying) return;
+                // const checkPlayback = (delayMs) => {
+                //     window.setTimeout(() => {
+                //         if (requestId !== this._playRequestId) return; // 최신 요청만 처리
+                //         const state = this.getPlayerState();
+                //         const isPlaying = state === YT.PlayerState.PLAYING;
+                //         const isBuffering = state === YT.PlayerState.BUFFERING;
+                //         if (isPlaying) return;
 
-                        // BUFFERING이면 조금 더 기다렸다가 최종 확인
-                        if (isBuffering && delayMs < 2000) {
-                            checkPlayback(2500);
-                            return;
-                        }
+                //         // BUFFERING이면 조금 더 기다렸다가 최종 확인
+                //         if (isBuffering && delayMs < 2000) {
+                //             checkPlayback(2500);
+                //             return;
+                //         }
 
-                        // print state for debugging
-                        console.log("Playback check: state =", state);
+                //         // print state for debugging
+                //         console.log("Playback check: state =", state);
 
-                        this._notifyUserGestureRequired('autoplayBlocked', {
-                            state
-                        });
-                    }, delayMs);
-                };
+                //         this._notifyUserGestureRequired('autoplayBlocked', {
+                //             state
+                //         });
+                //     }, delayMs);
+                // };
 
-                checkPlayback(1500);
+                // checkPlayback(1500);
             }
 
             pauseVideo() {
