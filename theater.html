@@ -75,11 +75,10 @@
             _handleAutoplayBlocked(event) {
                 console.log("Autoplay blocked event:", event);
 
-                // 반응 테스트용 주석 처리
-                // this._notifyUserGestureRequired('autoplayBlocked', {
-                //     source: 'onAutoplayBlocked',
-                //     data: event && event.data
-                // });
+                this._notifyUserGestureRequired('autoplayBlocked', {
+                    source: 'onAutoplayBlocked',
+                    data: event && event.data
+                });
             }
 
 
