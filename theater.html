@@ -75,11 +75,11 @@
             _notifyUserGestureRequired(reason, extra = {}, x = 0.5, y = 0.5) {
                 console.log("Notifying native of user gesture requirement:", reason, extra);
                 this.postJsonToNative({
-                    type: 'userGestureRequired',
-                    action: 'clickToPlay',
-                    x,
-                    y,
-                    reason,
+                    Type: 'userGestureRequired',
+                    Action: 'clickToPlay',
+                    X: x,
+                    Y: y,
+                    Reason: reason,
                     ...extra
                 });
             }
@@ -239,19 +239,6 @@
                 this.postMessageToNative(JSON.stringify(obj));
             }
 
-            // 플레이어 상태를 네이티브로 전송
-            sendPlayerStateToNative() {
-                const state = {
-                    type: 'playerState',
-                    ready: this._ready,
-                    state: this.getPlayerState(),
-                    currentTime: this.getCurrentTime(),
-                    duration: this.getDuration(),
-                    volume: this.getVolume(),
-                    muted: this.isMuted()
-                };
-                this.postJsonToNative(state);
-            }
         }
 
         // YouTube IFrame API 로드
