@@ -21,6 +21,7 @@
 
             // 내부 플레이어 초기화
             initPlayer() {
+                console.log("Initializing YouTube Player");
                 this._player = new YT.Player(this._elementId, {
                     height: this._options.height || '480',
                     width: this._options.width || '640',
@@ -72,6 +73,7 @@
             }
 
             _notifyUserGestureRequired(reason, extra = {}, x = 0.5, y = 0.5) {
+                console.log("Notifying native of user gesture requirement:", reason, extra);
                 this.postJsonToNative({
                     type: 'userGestureRequired',
                     action: 'clickToPlay',
@@ -95,6 +97,7 @@
             // 프록시 메서드들 - 재생 제어
             playVideo() {
                 if (!(this._player && this._ready)) {
+                    console.log("Player not ready, deferring playVideo");
                     this._pendingPlay = true;
                     return;
                 }
@@ -128,35 +131,43 @@
             }
 
             pauseVideo() {
+                console.log("Pausing video");
                 if (this._player && this._ready) this._player.pauseVideo();
             }
 
             stopVideo() {
+                console.log("Stopping video");
                 if (this._player && this._ready) this._player.stopVideo();
             }
 
             seekTo(seconds, allowSeekAhead = true) {
+                console.log("Seeking to:", seconds, "Allow seek ahead:", allowSeekAhead);
                 if (this._player && this._ready) this._player.seekTo(seconds, allowSeekAhead);
             }
 
             // 프록시 메서드들 - 볼륨 제어
             mute() {
+                console.log("Muting video");
                 if (this._player && this._ready) this._player.mute();
             }
 
             unMute() {
+                console.log("Unmuting video");
                 if (this._player && this._ready) this._player.unMute();
             }
 
             isMuted() {
+                console.log("Checking if video is muted");
                 return this._player && this._ready ? this._player.isMuted() : false;
             }
 
             setVolume(volume) {
+                console.log("Setting volume to:", volume);
                 if (this._player && this._ready) this._player.setVolume(volume);
             }
 
             getVolume() {
+                console.log("Getting current volume");
                 return this._player && this._ready ? this._player.getVolume() : 0;
             }
 
@@ -184,19 +195,23 @@
             // 프록시 메서드들 - 영상 로드
             loadVideoById(videoId, startSeconds = 0) {
                 if (this._player && this._ready) {
+                    console.log("Loading video by ID:", videoId, "at", startSeconds);
                     this._player.loadVideoById(videoId, startSeconds);
                 } else {
                     // 플레이어가 준비되지 않았으면 나중에 실행하도록 저장
+                    console.log("Player not ready, deferring loadVideoById:", videoId, "at", startSeconds);
                     this._pendingLoadVideo = { videoId, startSeconds };
                 }
             }
 
             cueVideoById(videoId, startSeconds = 0) {
+                console.log("Cueing video by ID:", videoId, "at", startSeconds);
                 if (this._player && this._ready) this._player.cueVideoById(videoId, startSeconds);
             }
 
             // 프록시 메서드들 - 플레이어 크기
             setSize(width, height) {
+                console.log("Setting player size to:", width, height);
                 if (this._player && this._ready) this._player.setSize(width, height);
             }
 
