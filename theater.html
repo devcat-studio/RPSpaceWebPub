@@ -1,18 +1,192 @@
 <!DOCTYPE html>
 <html>
 
-<body>
+<body style="margin: 0px; overflow: hidden;">
     <div id="player"></div>
 
     <script>
-        var tag = document.createElement('script');
+        // PlayerWrapper 클래스 선언 - 프록시 패턴으로 YouTube Player API 연결
+        class PlayerWrapper {
+            constructor(elementId, options = {}) {
+                this._player = null;
+                this._ready = false;
+                this._elementId = elementId;
+                this._options = options;
+                this._onReadyCallbacks = [];
+                this._onStateChangeCallbacks = [];
+                this._pendingLoadVideo = null; // 플레이어 준비 전 loadVideoById 호출 저장
+            }
 
+            // 내부 플레이어 초기화
+            initPlayer() {
+                this._player = new YT.Player(this._elementId, {
+                    height: this._options.height || '480',
+                    width: this._options.width || '640',
+                    videoId: this._options.videoId || '',
+                    playerVars: {
+                        'playsinline': 1,
+                        'autoplay': 0,
+                        ...this._options.playerVars
+                    },
+                    events: {
+                        'onReady': (event) => this._handleReady(event),
+                        'onStateChange': (event) => this._handleStateChange(event)
+                    }
+                });
+            }
+
+            // 내부 이벤트 핸들러
+            _handleReady(event) {
+                console.log("Player is ready");
+                this._ready = true;
+
+                // 펜딩된 loadVideoById 호출 실행
+                if (this._pendingLoadVideo) {
+                    const { videoId, startSeconds } = this._pendingLoadVideo;
+                    this._pendingLoadVideo = null;
+                    this._player.loadVideoById(videoId, startSeconds);
+                }
+
+                this._onReadyCallbacks.forEach(cb => cb(event));
+            }
+
+            _handleStateChange(event) {
+                console.log("Player state changed to: " + event.data);
+                this._onStateChangeCallbacks.forEach(cb => cb(event));
+            }
+
+            // 이벤트 콜백 등록
+            onReady(callback) {
+                this._onReadyCallbacks.push(callback);
+                if (this._ready) callback({ target: this._player });
+            }
+
+            onStateChange(callback) {
+                this._onStateChangeCallbacks.push(callback);
+            }
+
+            // 프록시 메서드들 - 재생 제어
+            playVideo() {
+                if (this._player && this._ready) this._player.playVideo();
+            }
+
+            pauseVideo() {
+                if (this._player && this._ready) this._player.pauseVideo();
+            }
+
+            stopVideo() {
+                if (this._player && this._ready) this._player.stopVideo();
+            }
+
+            seekTo(seconds, allowSeekAhead = true) {
+                if (this._player && this._ready) this._player.seekTo(seconds, allowSeekAhead);
+            }
+
+            // 프록시 메서드들 - 볼륨 제어
+            mute() {
+                if (this._player && this._ready) this._player.mute();
+            }
+
+            unMute() {
+                if (this._player && this._ready) this._player.unMute();
+            }
+
+            isMuted() {
+                return this._player && this._ready ? this._player.isMuted() : false;
+            }
+
+            setVolume(volume) {
+                if (this._player && this._ready) this._player.setVolume(volume);
+            }
+
+            getVolume() {
+                return this._player && this._ready ? this._player.getVolume() : 0;
+            }
+
+            // 프록시 메서드들 - 영상 정보
+            getDuration() {
+                return this._player && this._ready ? this._player.getDuration() : 0;
+            }
+
+            getCurrentTime() {
+                return this._player && this._ready ? this._player.getCurrentTime() : 0;
+            }
+
+            getPlayerState() {
+                return this._player && this._ready ? this._player.getPlayerState() : -1;
+            }
+
+            getVideoUrl() {
+                return this._player && this._ready ? this._player.getVideoUrl() : '';
+            }
+
+            getVideoEmbedCode() {
+                return this._player && this._ready ? this._player.getVideoEmbedCode() : '';
+            }
+
+            // 프록시 메서드들 - 영상 로드
+            loadVideoById(videoId, startSeconds = 0) {
+                if (this._player && this._ready) {
+                    this._player.loadVideoById(videoId, startSeconds);
+                } else {
+                    // 플레이어가 준비되지 않았으면 나중에 실행하도록 저장
+                    this._pendingLoadVideo = { videoId, startSeconds };
+                }
+            }
+
+            cueVideoById(videoId, startSeconds = 0) {
+                if (this._player && this._ready) this._player.cueVideoById(videoId, startSeconds);
+            }
+
+            // 프록시 메서드들 - 플레이어 크기
+            setSize(width, height) {
+                if (this._player && this._ready) this._player.setSize(width, height);
+            }
+
+            // 상태 확인
+            isReady() {
+                return this._ready;
+            }
+
+            // 내부 플레이어 직접 접근 (필요시)
+            getInternalPlayer() {
+                return this._player;
+            }
+
+            // Vuplex WebView 네이티브 메시지 전송
+            postMessageToNative(message) {
+                if (window.vuplex) {
+                    window.vuplex.postMessage(message);
+                } else {
+                    console.warn("Vuplex WebView not available");
+                }
+            }
+
+            // JSON 객체를 네이티브로 전송
+            postJsonToNative(obj) {
+                this.postMessageToNative(JSON.stringify(obj));
+            }
+
+            // 플레이어 상태를 네이티브로 전송
+            sendPlayerStateToNative() {
+                const state = {
+                    type: 'playerState',
+                    ready: this._ready,
+                    state: this.getPlayerState(),
+                    currentTime: this.getCurrentTime(),
+                    duration: this.getDuration(),
+                    volume: this.getVolume(),
+                    muted: this.isMuted()
+                };
+                this.postJsonToNative(state);
+            }
+        }
+
+        // YouTube IFrame API 로드
+        var tag = document.createElement('script');
         tag.src = "https://www.youtube.com/iframe_api";
         var firstScriptTag = document.getElementsByTagName('script')[0];
         firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
-
-        var player;
-        var playerReady = false;
 
         // URL에서 파라미터 가져오기 (기본값 설정)
         var urlParams = new URLSearchParams(window.location.search);
@@ -20,28 +194,16 @@
         var width = urlParams.get('width') || '640';
         var height = urlParams.get('height') || '480';
 
+        // HTML 로드하자마자 PlayerWrapper 인스턴스 생성
+        var player = new PlayerWrapper('player', {
+            videoId: videoId,
+            width: width,
+            height: height
+        });
+
+        // YouTube API 준비 완료 시 플레이어 초기화
         function onYouTubeIframeAPIReady() {
-            player = new YT.Player('player', {
-                height: height,
-                width: width,
-                videoId: videoId,
-                playerVars: {
-                    'playsinline': 1
-                },
-                events: {
-                    'onReady': onPlayerReady,
-                    'onStateChange': onPlayerStateChange
-                }
-            });
-        }
-
-        function onPlayerReady(event) {
-            console.log("Player is ready");
-            playerReady = true;
-        }
-
-        function onPlayerStateChange(event) {
-            console.log("Player state changed to: " + event.data);
+            player.initPlayer();
         }
 
     </script>
