@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html>
+
+<body>
+    <div id="player"></div>
+
+    <script>
+        var tag = document.createElement('script');
+
+        tag.src = "https://www.youtube.com/iframe_api";
+        var firstScriptTag = document.getElementsByTagName('script')[0];
+        firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
+
+        var player;
+        var playerReady = false;
+
+        // URL에서 파라미터 가져오기 (기본값 설정)
+        var urlParams = new URLSearchParams(window.location.search);
+        var videoId = urlParams.get('videoId') || '';
+        var width = urlParams.get('width') || '640';
+        var height = urlParams.get('height') || '480';
+
+        function onYouTubeIframeAPIReady() {
+            player = new YT.Player('player', {
+                height: height,
+                width: width,
+                videoId: videoId,
+                playerVars: {
+                    'playsinline': 1
+                },
+                events: {
+                    'onReady': onPlayerReady,
+                    'onStateChange': onPlayerStateChange
+                }
+            });
+        }
+
+        function onPlayerReady(event) {
+            console.log("Player is ready");
+            playerReady = true;
+        }
+
+        function onPlayerStateChange(event) {
+            console.log("Player state changed to: " + event.data);
+        }
+
+    </script>
+</body>
+
+</html>
