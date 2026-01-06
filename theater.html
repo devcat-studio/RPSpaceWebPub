@@ -34,7 +34,8 @@
                     events: {
                         'onReady': (event) => this._handleReady(event),
                         'onStateChange': (event) => this._handleStateChange(event),
-                        'onError': (event) => this._handleError(event)
+                        'onError': (event) => this._handleError(event),
+                        'onAutoplayBlocked': (event) => this._handleAutoplayBlocked(event)
                     }
                 });
             }
@@ -68,9 +69,19 @@
             _handleError(event) {
                 // 모바일/웹뷰 환경에서 사용자 제스처 없이 재생 시도가 막힐 때 error 콜백이 오거나,
                 // state가 PLAYING으로 전환되지 않는 경우가 있어, 네이티브에 안내할 수 있게 한다.
-                console.warn("Player error:", event && event.data);
+                console.log("Player error:", event && event.data);
                 this._notifyUserGestureRequired('playerError', { error: event && event.data });
             }
+
+            _handleAutoplayBlocked(event) {
+                console.log("Autoplay blocked event:", event);
+
+                this._notifyUserGestureRequired('autoplayBlocked', {
+                    source: 'onAutoplayBlocked',
+                    data: event && event.data
+                });
+            }
+
 
             _notifyUserGestureRequired(reason, extra = {}, x = 0.5, y = 0.5) {
                 console.log("Notifying native of user gesture requirement:", reason, extra);
@@ -120,6 +131,9 @@
                             checkPlayback(2500);
                             return;
                         }
+
+                        // print state for debugging
+                        console.log("Playback check: state =", state);
 
                         this._notifyUserGestureRequired('autoplayBlocked', {
                             state
