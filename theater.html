@@ -15,6 +15,8 @@
                 this._onReadyCallbacks = [];
                 this._onStateChangeCallbacks = [];
                 this._pendingLoadVideo = null; // 플레이어 준비 전 loadVideoById 호출 저장
+                this._pendingPlay = false; // 플레이어 준비 전 playVideo 호출 저장
+                this._playRequestId = 0; // play 요청 추적 (타이머 stale 방지)
             }
 
             // 내부 플레이어 초기화
@@ -30,7 +32,8 @@
                     },
                     events: {
                         'onReady': (event) => this._handleReady(event),
-                        'onStateChange': (event) => this._handleStateChange(event)
+                        'onStateChange': (event) => this._handleStateChange(event),
+                        'onError': (event) => this._handleError(event)
                     }
                 });
             }
@@ -47,12 +50,36 @@
                     this._player.loadVideoById(videoId, startSeconds);
                 }
 
+                // 펜딩된 playVideo 호출 실행
+                if (this._pendingPlay) {
+                    this._pendingPlay = false;
+                    this.playVideo();
+                }
+
                 this._onReadyCallbacks.forEach(cb => cb(event));
             }
 
             _handleStateChange(event) {
                 console.log("Player state changed to: " + event.data);
                 this._onStateChangeCallbacks.forEach(cb => cb(event));
+            }
+
+            _handleError(event) {
+                // 모바일/웹뷰 환경에서 사용자 제스처 없이 재생 시도가 막힐 때 error 콜백이 오거나,
+                // state가 PLAYING으로 전환되지 않는 경우가 있어, 네이티브에 안내할 수 있게 한다.
+                console.warn("Player error:", event && event.data);
+                this._notifyUserGestureRequired('playerError', { error: event && event.data });
+            }
+
+            _notifyUserGestureRequired(reason, extra = {}, x = 0.5, y = 0.5) {
+                this.postJsonToNative({
+                    type: 'userGestureRequired',
+                    action: 'clickToPlay',
+                    x,
+                    y,
+                    reason,
+                    ...extra
+                });
             }
 
             // 이벤트 콜백 등록
@@ -67,7 +94,37 @@
 
             // 프록시 메서드들 - 재생 제어
             playVideo() {
-                if (this._player && this._ready) this._player.playVideo();
+                if (!(this._player && this._ready)) {
+                    this._pendingPlay = true;
+                    return;
+                }
+
+                // play 지시 후 실제로 재생이 시작되지 않으면(모바일 자동재생 제한 등)
+                // 네이티브에 사용자 클릭 유도를 요청한다.
+                const requestId = ++this._playRequestId;
+                this._player.playVideo();
+
+                const checkPlayback = (delayMs) => {
+                    window.setTimeout(() => {
+                        if (requestId !== this._playRequestId) return; // 최신 요청만 처리
+                        const state = this.getPlayerState();
+                        const isPlaying = state === YT.PlayerState.PLAYING;
+                        const isBuffering = state === YT.PlayerState.BUFFERING;
+                        if (isPlaying) return;
+
+                        // BUFFERING이면 조금 더 기다렸다가 최종 확인
+                        if (isBuffering && delayMs < 2000) {
+                            checkPlayback(2500);
+                            return;
+                        }
+
+                        this._notifyUserGestureRequired('autoplayBlocked', {
+                            state
+                        });
+                    }, delayMs);
+                };
+
+                checkPlayback(1500);
             }
 
             pauseVideo() {
