@@ -96,6 +96,8 @@
     </div>
 
     <script>
+        var playerObjectIsValid = false;
+
         function _safeJson(value) {
             try {
                 return JSON.stringify(value);
@@ -578,6 +580,8 @@
         function onYouTubeIframeAPIReady() {
             player.initPlayer();
         }
+
+        playerObjectIsValid = true;
 
     </script>
 </body>

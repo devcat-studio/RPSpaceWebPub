@@ -96,6 +96,8 @@
     </div>
 
     <script>
+        var playerObjectIsValid = false;
+
         function _safeJson(value) {
             try {
                 return JSON.stringify(value);
@@ -579,7 +581,7 @@
             player.initPlayer();
         }
 
-        var playerObjectIsValid = true;
+        playerObjectIsValid = true;
 
     </script>
 </body>
