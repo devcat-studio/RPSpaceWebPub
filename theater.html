@@ -1,11 +1,254 @@
 <!DOCTYPE html>
 <html>
 
-<body style="margin: 0px; overflow: hidden;">
-    <div id="player"></div>
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Theater Debug</title>
+    <style>
+        html,
+        body {
+            height: 100%;
+        }
+
+        body {
+            margin: 0;
+            overflow: hidden;
+            font-family: system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue", Arial, "Noto Sans", "Apple Color Emoji", "Segoe UI Emoji";
+        }
+
+        #layout {
+            display: grid;
+            grid-template-rows: auto 1fr;
+            height: 100%;
+        }
+
+        #header {
+            padding: 10px 12px;
+            background: #111;
+            color: #fff;
+            font-size: 13px;
+            line-height: 1.4;
+        }
+
+        #content {
+            display: grid;
+            grid-template-columns: 1fr 420px;
+            height: 100%;
+            min-height: 0;
+        }
+
+        #player {
+            display: grid;
+            place-items: center;
+            background: #000;
+            color: rgba(255, 255, 255, 0.75);
+            font-size: 14px;
+        }
+
+        #debugPanel {
+            border-left: 1px solid #ddd;
+            background: #fafafa;
+            min-width: 280px;
+            min-height: 0;
+            display: grid;
+            grid-template-rows: auto 1fr;
+        }
+
+        #debugTitle {
+            padding: 10px 12px;
+            border-bottom: 1px solid #ddd;
+            font-weight: 600;
+            font-size: 13px;
+        }
+
+        #callLog {
+            margin: 0;
+            padding: 10px 12px;
+            overflow: auto;
+            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+            font-size: 12px;
+            white-space: pre-wrap;
+            word-break: break-word;
+        }
+
+        .muted {
+            opacity: 0.8;
+        }
+    </style>
+</head>
+
+<body>
+    <div id="layout">
+        <div id="header">
+            <div><b>Theater Debug</b> — 실제 YouTube는 로드/재생하지 않습니다.</div>
+            <div class="muted">외부에서 기존과 동일하게 <code>player.*</code> API를 호출하면, 호출된 함수명/인자를 오른쪽 패널에 표시합니다.</div>
+        </div>
+
+        <div id="content">
+            <div id="player">(YouTube disabled in debug)</div>
+
+            <div id="debugPanel">
+                <div id="debugTitle">API Call Log</div>
+                <pre id="callLog"></pre>
+            </div>
+        </div>
+    </div>
 
     <script>
-        // PlayerWrapper 클래스 선언 - 프록시 패턴으로 YouTube Player API 연결
+        function _safeJson(value) {
+            try {
+                return JSON.stringify(value);
+            } catch {
+                return '"[unserializable]"';
+            }
+        }
+
+        function _nowTime() {
+            const d = new Date();
+            return d.toISOString().slice(11, 23);
+        }
+
+        function logCall(name, args) {
+            const el = document.getElementById('callLog');
+            if (!el) return;
+
+            const renderedArgs = args && args.length
+                ? args.map(a => _safeJson(a)).join(', ')
+                : '';
+
+            el.textContent += `[${_nowTime()}] ${name}(${renderedArgs})\n`;
+            el.scrollTop = el.scrollHeight;
+        }
+
+        // Debug 환경에서 vuplex가 없더라도 postMessage 호출을 확인할 수 있게 스텁 제공
+        if (!window.vuplex) {
+            window.vuplex = {
+                postMessage: (message) => {
+                    logCall('vuplex.postMessage', [message]);
+                }
+            };
+        }
+
+        // 실제 YouTube IFrame API 대신, 최소 동작만 하는 YT 스텁 제공
+        (function installYTStub() {
+            const PlayerState = {
+                UNSTARTED: -1,
+                ENDED: 0,
+                PLAYING: 1,
+                PAUSED: 2,
+                BUFFERING: 3,
+                CUED: 5
+            };
+
+            class StubPlayer {
+                constructor(elementId, config) {
+                    this._elementId = elementId;
+                    this._config = config || {};
+                    this._videoId = (config && config.videoId) || '';
+                    this._width = (config && config.width) || '640';
+                    this._height = (config && config.height) || '480';
+                    this._muted = false;
+                    this._volume = 100;
+                    this._state = PlayerState.UNSTARTED;
+                    this._currentTime = 0;
+                    this._duration = 0;
+
+                    window.setTimeout(() => {
+                        const onReady = this._config && this._config.events && this._config.events.onReady;
+                        if (typeof onReady === 'function') onReady({ target: this });
+                    }, 0);
+                }
+
+                _emitStateChange(state) {
+                    this._state = state;
+                    const onStateChange = this._config && this._config.events && this._config.events.onStateChange;
+                    if (typeof onStateChange === 'function') onStateChange({ data: state, target: this });
+                }
+
+                playVideo() {
+                    this._emitStateChange(PlayerState.PLAYING);
+                }
+
+                pauseVideo() {
+                    this._emitStateChange(PlayerState.PAUSED);
+                }
+
+                stopVideo() {
+                    this._currentTime = 0;
+                    this._emitStateChange(PlayerState.UNSTARTED);
+                }
+
+                seekTo(seconds, allowSeekAhead) {
+                    this._currentTime = Number(seconds) || 0;
+                }
+
+                mute() {
+                    this._muted = true;
+                }
+
+                unMute() {
+                    this._muted = false;
+                }
+
+                isMuted() {
+                    return this._muted;
+                }
+
+                setVolume(volume) {
+                    const v = Number(volume);
+                    this._volume = Number.isFinite(v) ? Math.max(0, Math.min(100, v)) : this._volume;
+                }
+
+                getVolume() {
+                    return this._volume;
+                }
+
+                getDuration() {
+                    return this._duration;
+                }
+
+                getCurrentTime() {
+                    return this._currentTime;
+                }
+
+                getPlayerState() {
+                    return this._state;
+                }
+
+                getVideoUrl() {
+                    return this._videoId ? `https://www.youtube.com/watch?v=${this._videoId}` : '';
+                }
+
+                getVideoEmbedCode() {
+                    return '';
+                }
+
+                loadVideoById(videoId, startSeconds) {
+                    this._videoId = videoId || '';
+                    this._currentTime = Number(startSeconds) || 0;
+                    this._emitStateChange(PlayerState.CUED);
+                }
+
+                cueVideoById(videoId, startSeconds) {
+                    this._videoId = videoId || '';
+                    this._currentTime = Number(startSeconds) || 0;
+                    this._emitStateChange(PlayerState.CUED);
+                }
+
+                setSize(width, height) {
+                    this._width = width;
+                    this._height = height;
+                }
+            }
+
+            window.YT = {
+                PlayerState,
+                Player: StubPlayer
+            };
+        })();
+
+        // PlayerWrapper 클래스 선언 - (디버그) YouTube 대신 YT 스텁으로 연결
         class PlayerWrapper {
             constructor(elementId, options = {}) {
                 this._player = null;
@@ -14,14 +257,53 @@
                 this._options = options;
                 this._onReadyCallbacks = [];
                 this._onStateChangeCallbacks = [];
-                this._pendingLoadVideo = null; // 플레이어 준비 전 loadVideoById 호출 저장
-                this._pendingPlay = false; // 플레이어 준비 전 playVideo 호출 저장
-                this._playRequestId = 0; // play 요청 추적 (타이머 stale 방지)
+                this._pendingLoadVideo = null;
+                this._pendingPlay = false;
+                this._playRequestId = 0;
+
+                this._installDebugMethodWrappers();
             }
 
-            // 내부 플레이어 초기화
+            _installDebugMethodWrappers() {
+                const methodsToLog = [
+                    'initPlayer',
+                    'onReady',
+                    'onStateChange',
+                    'playVideo',
+                    'pauseVideo',
+                    'stopVideo',
+                    'seekTo',
+                    'mute',
+                    'unMute',
+                    'isMuted',
+                    'setVolume',
+                    'getVolume',
+                    'getDuration',
+                    'getCurrentTime',
+                    'getPlayerState',
+                    'getVideoUrl',
+                    'getVideoEmbedCode',
+                    'loadVideoById',
+                    'cueVideoById',
+                    'setSize',
+                    'isReady',
+                    'getInternalPlayer',
+                    'postMessageToNative',
+                    'postJsonToNative'
+                ];
+
+                for (const name of methodsToLog) {
+                    const original = this[name];
+                    if (typeof original !== 'function') continue;
+                    this[name] = (...args) => {
+                        logCall(`player.${name}`, args);
+                        return original.apply(this, args);
+                    };
+                }
+            }
+
+            // 내부 플레이어 초기화 (실제 YouTube 아님)
             initPlayer() {
-                console.log("Initializing YouTube Player");
                 this._player = new YT.Player(this._elementId, {
                     height: this._options.height || '480',
                     width: this._options.width || '640',
@@ -42,7 +324,6 @@
 
             // 내부 이벤트 핸들러
             _handleReady(event) {
-                console.log("Player is ready");
                 this._ready = true;
 
                 // 펜딩된 loadVideoById 호출 실행
@@ -62,18 +343,17 @@
             }
 
             _handleStateChange(event) {
-                console.log("Player state changed to: " + event.data);
                 this._onStateChangeCallbacks.forEach(cb => cb(event));
             }
 
             _handleError(event) {
                 // 모바일/웹뷰 환경에서 사용자 제스처 없이 재생 시도가 막힐 때 error 콜백이 오거나,
                 // state가 PLAYING으로 전환되지 않는 경우가 있어, 네이티브에 안내할 수 있게 한다.
-                console.log("Player error:", event && event.data);
+                logCall('player._handleError', [event && event.data]);
             }
 
             _handleAutoplayBlocked(event) {
-                console.log("Autoplay blocked event:", event);
+                logCall('player._handleAutoplayBlocked', [event && event.data]);
 
                 this._notifyUserGestureRequired('autoplayBlocked', {
                     source: 'onAutoplayBlocked',
@@ -83,7 +363,6 @@
 
 
             _notifyUserGestureRequired(reason, extra = {}, x = 0.5, y = 0.5) {
-                console.log("Notifying native of user gesture requirement:", reason, extra);
                 this.postJsonToNative({
                     Type: 'userGestureRequired',
                     Action: 'clickToPlay',
@@ -107,7 +386,6 @@
             // 프록시 메서드들 - 재생 제어
             playVideo() {
                 if (!(this._player && this._ready)) {
-                    console.log("Player not ready, deferring playVideo");
                     this._pendingPlay = true;
                     return;
                 }
@@ -144,43 +422,35 @@
             }
 
             pauseVideo() {
-                console.log("Pausing video");
                 if (this._player && this._ready) this._player.pauseVideo();
             }
 
             stopVideo() {
-                console.log("Stopping video");
                 if (this._player && this._ready) this._player.stopVideo();
             }
 
             seekTo(seconds, allowSeekAhead = true) {
-                console.log("Seeking to:", seconds, "Allow seek ahead:", allowSeekAhead);
                 if (this._player && this._ready) this._player.seekTo(seconds, allowSeekAhead);
             }
 
             // 프록시 메서드들 - 볼륨 제어
             mute() {
-                console.log("Muting video");
                 if (this._player && this._ready) this._player.mute();
             }
 
             unMute() {
-                console.log("Unmuting video");
                 if (this._player && this._ready) this._player.unMute();
             }
 
             isMuted() {
-                console.log("Checking if video is muted");
                 return this._player && this._ready ? this._player.isMuted() : false;
             }
 
             setVolume(volume) {
-                console.log("Setting volume to:", volume);
                 if (this._player && this._ready) this._player.setVolume(volume);
             }
 
             getVolume() {
-                console.log("Getting current volume");
                 return this._player && this._ready ? this._player.getVolume() : 0;
             }
 
@@ -208,23 +478,19 @@
             // 프록시 메서드들 - 영상 로드
             loadVideoById(videoId, startSeconds = 0) {
                 if (this._player && this._ready) {
-                    console.log("Loading video by ID:", videoId, "at", startSeconds);
                     this._player.loadVideoById(videoId, startSeconds);
                 } else {
                     // 플레이어가 준비되지 않았으면 나중에 실행하도록 저장
-                    console.log("Player not ready, deferring loadVideoById:", videoId, "at", startSeconds);
                     this._pendingLoadVideo = { videoId, startSeconds };
                 }
             }
 
             cueVideoById(videoId, startSeconds = 0) {
-                console.log("Cueing video by ID:", videoId, "at", startSeconds);
                 if (this._player && this._ready) this._player.cueVideoById(videoId, startSeconds);
             }
 
             // 프록시 메서드들 - 플레이어 크기
             setSize(width, height) {
-                console.log("Setting player size to:", width, height);
                 if (this._player && this._ready) this._player.setSize(width, height);
             }
 
@@ -240,11 +506,7 @@
 
             // Vuplex WebView 네이티브 메시지 전송
             postMessageToNative(message) {
-                if (window.vuplex) {
-                    window.vuplex.postMessage(message);
-                } else {
-                    console.warn("Vuplex WebView not available");
-                }
+                window.vuplex.postMessage(message);
             }
 
             // JSON 객체를 네이티브로 전송
@@ -253,12 +515,6 @@
             }
 
         }
-
-        // YouTube IFrame API 로드
-        var tag = document.createElement('script');
-        tag.src = "https://www.youtube.com/iframe_api";
-        var firstScriptTag = document.getElementsByTagName('script')[0];
-        firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
 
         // URL에서 파라미터 가져오기 (기본값 설정)
         var urlParams = new URLSearchParams(window.location.search);
@@ -273,7 +529,10 @@
             height: height
         });
 
-        // YouTube API 준비 완료 시 플레이어 초기화
+        // 디버그 페이지에서는 즉시 초기화한다 (실제 YouTube 로딩 없음)
+        player.initPlayer();
+
+        // 외부가 기존처럼 이 함수를 기대할 수 있어 유지
         function onYouTubeIframeAPIReady() {
             player.initPlayer();
         }
