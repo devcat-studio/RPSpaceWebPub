@@ -104,6 +104,19 @@
             }
         }
 
+        function _renderArg(value) {
+            if (value instanceof Error) {
+                return _safeJson({ name: value.name, message: value.message, stack: value.stack });
+            }
+
+            // Promise rejection reason 등이 문자열/객체/기타일 수 있어 방어적으로 처리
+            const t = typeof value;
+            if (value == null || t === 'number' || t === 'boolean') return String(value);
+            if (t === 'string') return value;
+
+            return _safeJson(value);
+        }
+
         function _nowTime() {
             const d = new Date();
             return d.toISOString().slice(11, 23);
@@ -114,12 +127,41 @@
             if (!el) return;
 
             const renderedArgs = args && args.length
-                ? args.map(a => _safeJson(a)).join(', ')
+                ? args.map(a => _renderArg(a)).join(', ')
                 : '';
 
             el.textContent += `[${_nowTime()}] ${name}(${renderedArgs})\n`;
             el.scrollTop = el.scrollHeight;
         }
+
+        // console.* 로 찍히는 로그/에러를 가로채서 패널에 표시 (원래 콘솔 출력은 유지)
+        (function interceptConsole() {
+            const methods = ['log', 'info', 'warn', 'error', 'debug'];
+            const original = {};
+
+            for (const m of methods) {
+                if (typeof console[m] !== 'function') continue;
+                original[m] = console[m].bind(console);
+                console[m] = (...args) => {
+                    try {
+                        logCall(`console.${m}`, args);
+                    } catch {
+                        // 로깅 자체 실패 시 콘솔 기능을 깨지 않음
+                    }
+                    return original[m](...args);
+                };
+            }
+        })();
+
+        // 콘솔에 찍히지 않을 수도 있는 런타임 에러/리젝션도 패널에 남김
+        window.addEventListener('error', (event) => {
+            // event.error 가 Error 인스턴스일 수 있음
+            logCall('window.error', [event && event.message, (event && event.error) || null, event && event.filename, event && event.lineno, event && event.colno]);
+        });
+
+        window.addEventListener('unhandledrejection', (event) => {
+            logCall('window.unhandledrejection', [event && event.reason]);
+        });
 
         // Debug 환경에서 vuplex가 없더라도 postMessage 호출을 확인할 수 있게 스텁 제공
         if (!window.vuplex) {
