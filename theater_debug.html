@@ -520,7 +520,9 @@
             }
 
             // 프록시 메서드들 - 영상 로드
-            loadVideoById(videoId, startSeconds = 0) {
+            loadVideoById(videoId, startSeconds = 0, debugString = '') {
+                console.log("Loading video by ID:", videoId, "at", startSeconds, "Debug:", debugString);
+                logCall('player.loadVideoById debug', [videoId, startSeconds, debugString]);
                 if (this._player && this._ready) {
                     this._player.loadVideoById(videoId, startSeconds);
                 } else {
