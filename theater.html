@@ -6,6 +6,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Theater Debug Frame</title>
     <style>
+        * {
+            box-sizing: border-box;
+        }
+
         html,
         body {
             height: 100%;
@@ -46,7 +50,7 @@
             background: #fafafa;
             display: grid;
             grid-template-rows: auto 1fr;
-            min-width: 280px;
+            min-width: min(280px, 50vw);
         }
 
         #debugTitle {
@@ -74,6 +78,19 @@
             width: 50vw;
             height: 50vh;
             background: transparent;
+        }
+
+        @media (max-width: 700px),
+        (max-height: 520px) {
+            #debugTitle {
+                padding: 8px 10px;
+                font-size: 12px;
+            }
+
+            #callLog {
+                padding: 8px 10px;
+                font-size: 11px;
+            }
         }
     </style>
 </head>
