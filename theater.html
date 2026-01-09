@@ -20,147 +20,14 @@
             overflow: hidden;
             font-family: system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue", Arial, "Noto Sans", "Apple Color Emoji", "Segoe UI Emoji";
         }
-
-        #videoPane {
-            position: fixed;
-            left: 0;
-            top: 0;
-            width: 50vw;
-            height: 50vh;
-            background: #000;
-        }
-
-        #player {
-            width: 100%;
-            height: 100%;
-        }
-
-        #player iframe {
-            width: 100% !important;
-            height: 100% !important;
-        }
-
-        #debugPane {
-            position: fixed;
-            right: 0;
-            top: 0;
-            width: 50vw;
-            height: 100vh;
-            border-left: 1px solid #ddd;
-            background: #fafafa;
-            display: grid;
-            grid-template-rows: auto 1fr;
-            min-width: min(280px, 50vw);
-        }
-
-        #debugTitle {
-            padding: 10px 12px;
-            border-bottom: 1px solid #ddd;
-            font-weight: 600;
-            font-size: 13px;
-            line-height: 1.4;
-        }
-
-        #callLog {
-            margin: 0;
-            padding: 10px 12px;
-            overflow: auto;
-            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
-            font-size: 12px;
-            white-space: pre-wrap;
-            word-break: break-word;
-        }
-
-        #bottomPane {
-            position: fixed;
-            left: 0;
-            bottom: 0;
-            width: 50vw;
-            height: 50vh;
-            background: transparent;
-        }
-
-        @media (max-width: 700px),
-        (max-height: 520px) {
-            #debugTitle {
-                padding: 8px 10px;
-                font-size: 12px;
-            }
-
-            #callLog {
-                padding: 8px 10px;
-                font-size: 11px;
-            }
-        }
     </style>
 </head>
 
-<body>
-    <div id="videoPane">
-        <div id="player"></div>
-    </div>
-
-    <div id="debugPane">
-        <div id="debugTitle">최근 호출 로그 (로드 후 경과시간 포함)</div>
-        <pre id="callLog"></pre>
-    </div>
-
-    <div id="bottomPane"></div>
+<body style="margin: 0px; overflow: hidden;">
+    <div id="player"></div>
 
     <script>
         var playerObjectIsValid = false;
-
-        const __pageLoadNow = (typeof performance !== 'undefined' && performance && typeof performance.now === 'function')
-            ? () => performance.now()
-            : () => Date.now();
-        const __pageLoadStart = __pageLoadNow();
-
-        function __safeJson(value) {
-            try {
-                return JSON.stringify(value);
-            } catch {
-                return '"[unserializable]"';
-            }
-        }
-
-        function __renderArg(value) {
-            if (value instanceof Error) {
-                return __safeJson({ name: value.name, message: value.message, stack: value.stack });
-            }
-
-            const t = typeof value;
-            if (value == null || t === 'number' || t === 'boolean') return String(value);
-            if (t === 'string') return value;
-            if (t === 'function') return '[function]';
-
-            return __safeJson(value);
-        }
-
-        function __formatElapsed(ms) {
-            if (!Number.isFinite(ms)) return '+?';
-            if (ms < 1000) return `+${Math.round(ms)}ms`;
-            return `+${(ms / 1000).toFixed(3)}s`;
-        }
-
-        function __logCall(name, args) {
-            const el = document.getElementById('callLog');
-            if (!el) return;
-
-            const elapsed = __formatElapsed(__pageLoadNow() - __pageLoadStart);
-            const renderedArgs = args && args.length
-                ? args.map(a => __renderArg(a)).join(', ')
-                : '';
-
-            el.textContent += `${elapsed} ${name}(${renderedArgs})\n`;
-
-            // 너무 길어지면 앞부분을 잘라냄(최소한의 보호)
-            const maxChars = 80_000;
-            if (el.textContent.length > maxChars) {
-                el.textContent = el.textContent.slice(el.textContent.length - maxChars);
-            }
-
-            el.scrollTop = el.scrollHeight;
-        }
 
         // PlayerWrapper 클래스 선언 - 프록시 패턴으로 YouTube Player API 연결
         class PlayerWrapper {
@@ -429,49 +296,6 @@
             width: width,
             height: height
         });
-
-        // player API 호출 로그(최근 호출 함수명/인자/경과시간)
-        (function installPlayerCallLogger() {
-            const methodsToLog = [
-                'initPlayer',
-                'onReady',
-                'onStateChange',
-                'playVideo',
-                'pauseVideo',
-                'stopVideo',
-                'seekTo',
-                'mute',
-                'unMute',
-                'isMuted',
-                'setVolume',
-                'getVolume',
-                'getDuration',
-                'getCurrentTime',
-                'getPlayerState',
-                'getVideoUrl',
-                'getVideoEmbedCode',
-                'loadVideoById',
-                'cueVideoById',
-                'setSize',
-                'isReady',
-                'getInternalPlayer',
-                'postMessageToNative',
-                'postJsonToNative'
-            ];
-
-            for (const name of methodsToLog) {
-                const original = player && player[name];
-                if (typeof original !== 'function') continue;
-                player[name] = function (...args) {
-                    try {
-                        __logCall(`player.${name}`, args);
-                    } catch {
-                        // 로깅 실패가 기능에 영향을 주지 않게
-                    }
-                    return original.apply(this, args);
-                };
-            }
-        })();
 
         // YouTube API 준비 완료 시 플레이어 초기화
         function onYouTubeIframeAPIReady() {
