@@ -77,7 +77,14 @@
             bottom: 0;
             width: 50vw;
             height: 50vh;
-            background: transparent;
+            background: #000;
+        }
+
+        #localVideo {
+            width: 100%;
+            height: 100%;
+            display: block;
+            object-fit: contain;
         }
 
         @media (max-width: 700px),
@@ -105,7 +112,9 @@
         <pre id="callLog"></pre>
     </div>
 
-    <div id="bottomPane"></div>
+    <div id="bottomPane">
+        <video id="localVideo" src="test_movie.mp4" autoplay muted playsinline></video>
+    </div>
 
     <script>
         var playerObjectIsValid = false;
@@ -481,6 +490,23 @@
         }
 
         playerObjectIsValid = true;
+
+        // 로컬 MP4 테스트 (autoplay + muted)
+        (function initLocalVideoAutoplay() {
+            const v = document.getElementById('localVideo');
+            if (!v) return;
+
+            // 일부 브라우저는 속성만으로 부족해 명시적으로 설정/재생을 시도
+            v.muted = true;
+            v.autoplay = true;
+
+            const p = v.play();
+            if (p && typeof p.catch === 'function') {
+                p.catch((err) => {
+                    console.warn('Local video autoplay blocked:', err);
+                });
+            }
+        })();
 
     </script>
 </body>
